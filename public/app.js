@@ -46,39 +46,55 @@ async function fetchActualites() {
     try {
         let htmlContent = '';
         
-        // On appelle TON fichier JSON via GitHub Raw
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
         
         if(persoRes.ok) {
             const persoData = await persoRes.json();
             
-            // Adaptation automatique selon si ton JSON contient les articles dans une liste directe, ou sous un nom comme "items"
-            let articles = [];
-            if (Array.isArray(persoData)) {
-                articles = persoData;
-            } else if (persoData.items && Array.isArray(persoData.items)) {
-                articles = persoData.items;
-            } else {
-                articles = [persoData];
+            // --- FONCTION MAGIQUE POUR TROUVER LA LISTE D'ARTICLES ---
+            // Cette fonction fouille dans ton JSON pour trouver le vrai tableau qui contient les infos
+            function trouverArticles(data) {
+                if (Array.isArray(data)) return data;
+                if (typeof data === 'object' && data !== null) {
+                    // 1. Cherche un tableau au premier niveau
+                    for (let key in data) {
+                        if (Array.isArray(data[key])) return data[key];
+                    }
+                    // 2. Cherche un tableau plus en profondeur si caché dans d'autres sous-dossiers
+                    for (let key in data) {
+                        if (typeof data[key] === 'object') {
+                            let resultat = trouverArticles(data[key]);
+                            if (resultat) return resultat;
+                        }
+                    }
+                }
+                return [data]; // Cas extrême si aucun tableau n'est trouvé
             }
             
+            let articles = trouverArticles(persoData);
+            
+            // On filtre pour enlever d'éventuels éléments vides du JSON
+            articles = articles.filter(actu => actu && (actu.title || actu.summary));
+
             if (articles.length === 0) {
-                htmlContent = '<p>Aucune actualité trouvée dans ton fichier JSON.</p>';
+                htmlContent = '<p>Aucune actualité valide trouvée dans ton fichier JSON.</p>';
             } else {
                 articles.forEach(actu => {
-                    // Récupération des données selon TA structure exacte
                     const titleSafe = (actu.title || 'Information').replace(/'/g, "\\'");
-                    const urlSafe = (actu.link || actu.url || '#').replace(/'/g, "\\'"); // 'link' en priorité
-                    const texteActu = actu.summary || actu.content || actu.description || 'Aucun détail fourni.'; // 'summary' en priorité
+                    const urlSafe = (actu.link || actu.url || '#').replace(/'/g, "\\'"); 
+                    const texteActu = actu.summary || actu.content || actu.description || 'Aucun détail fourni.';
                     const favClass = isFavori(urlSafe) ? 'active' : '';
                     
-                    // Formatage de la date et de la source
                     let infosSup = '';
                     if (actu.published || actu.source) {
                         let dateFr = '';
                         if (actu.published) {
                             const d = new Date(actu.published);
-                            dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                            if(!isNaN(d)) {
+                                dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                            } else {
+                                dateFr = actu.published; // Garde la date brute si le format est spécial
+                            }
                         }
                         const sourceTexte = actu.source ? `<strong>${actu.source}</strong>` : '';
                         const separateur = (sourceTexte && dateFr) ? ' - ' : '';
@@ -89,7 +105,6 @@ async function fetchActualites() {
                         ? `<a href="${urlSafe}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire l'article complet <i class="fas fa-arrow-right"></i></a>` 
                         : '';
 
-                    // Création de la carte HTML
                     htmlContent += `
                         <div class="card" style="border-left: 4px solid var(--primary-color);">
                             <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
@@ -103,12 +118,12 @@ async function fetchActualites() {
                 });
             }
         } else {
-            htmlContent = '<p>Impossible de lire ton fichier JSON sur GitHub. Vérifie que le fichier existe et est public.</p>';
+            htmlContent = '<p>Impossible de lire ton fichier JSON sur GitHub.</p>';
         }
 
         contentArea.innerHTML = htmlContent;
     } catch (e) { 
-        contentArea.innerHTML = "<p>Erreur de chargement de tes actualités. Vérifie le format de ton fichier JSON.</p>"; 
+        contentArea.innerHTML = "<p>Erreur lors de l'analyse des actualités.</p>"; 
         console.error("Erreur JSON :", e);
     }
 }
@@ -238,7 +253,6 @@ async function askIA() {
     } catch (e) { responseDiv.innerText = "Erreur de connexion au serveur IA."; }
 }
 
-// Initialisation au chargement de la page
 window.onload = () => {
     loadSection('actu');
 };
