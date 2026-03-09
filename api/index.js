@@ -9,7 +9,7 @@ app.use(express.json());
 app.post('/api/chat', async (req, res) => {
     try {
         const { message } = req.body;
-        const apiKey = process.env.ANTHROPIC_API_KEY;
+        const apiKey = process.env.CLAUDE_API_KEY;
 
         // 1. Vérification de la clé
         if (!apiKey) {
