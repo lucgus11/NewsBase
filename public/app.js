@@ -11,13 +11,12 @@ let favoris = JSON.parse(localStorage.getItem('newsbase_favoris')) || [];
 function toggleFavori(titre, url, description) {
     const index = favoris.findIndex(fav => fav.url === url);
     if (index > -1) {
-        favoris.splice(index, 1); // Retire si déjà en favori
+        favoris.splice(index, 1);
     } else {
-        favoris.push({ titre, url, description }); // Ajoute
+        favoris.push({ titre, url, description });
     }
     localStorage.setItem('newsbase_favoris', JSON.stringify(favoris));
     
-    // Rafraîchir l'affichage selon la section en cours
     if (sectionTitle.innerText === "Actualités") fetchActualites();
     if (sectionTitle.innerText === "Mes Favoris") loadFavoris();
 }
@@ -48,30 +47,38 @@ async function fetchActualites() {
         let htmlContent = '';
         
         // 1. API Perso (GitHub)
-        const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
-        if(persoRes.ok) {
-            const persoData = await persoRes.json();
-            const favClass = isFavori(persoData.url || '#') ? 'active' : '';
-            htmlContent += `
-                <div class="card" style="border-left: 4px solid var(--primary-color);">
-                    <button class="btn-fav ${favClass}" onclick="toggleFavori('${persoData.title}', '${persoData.url || '#'}', '${persoData.content || ''}')">
-                        <i class="fas fa-star"></i>
-                    </button>
-                    <h3><i class="fas fa-thumbtack"></i> Actu Perso</h3>
-                    <p><strong>${persoData.title}</strong></p>
-                    <p>${persoData.content || 'Détails dans le fichier JSON.'}</p>
-                </div>`;
-        }
+        try {
+            const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
+            if(persoRes.ok) {
+                const persoData = await persoRes.json();
+                // Si ton JSON est un tableau (plusieurs actus) on prend la première, sinon l'objet unique
+                const actuPerso = Array.isArray(persoData) ? persoData[0] : persoData;
+                
+                const titleSafe = (actuPerso.title || 'Actu Perso').replace(/'/g, "\\'");
+                const urlSafe = (actuPerso.url || '#').replace(/'/g, "\\'");
+                const favClass = isFavori(urlSafe) ? 'active' : '';
+                
+                htmlContent += `
+                    <div class="card" style="border-left: 4px solid var(--primary-color);">
+                        <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
+                            <i class="fas fa-star"></i>
+                        </button>
+                        <h3><i class="fas fa-thumbtack"></i> ${actuPerso.title || 'Information'}</h3>
+                        <p>${actuPerso.content || actuPerso.description || 'Détails dans le fichier JSON.'}</p>
+                    </div>`;
+            }
+        } catch(e) { console.log("Erreur chargement actu perso"); }
 
-        // 2. News API via Backend
-        const newsRes = await fetch('/api/news');
+        // 2. Flux d'actualités (Contournement de NewsAPI qui bloque Vercel)
+        // On utilise l'API publique rss2json pour lire les infos en direct (ex: France Info)
+        const newsRes = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.francetvinfo.fr%2Ftitres.rss');
         const newsData = await newsRes.json();
         
-        if(newsData.articles) {
-            newsData.articles.slice(0, 10).forEach(article => {
-                const urlSafe = article.url.replace(/'/g, "\\'"); // Sécurité pour les guillemets
+        if(newsData.items) {
+            newsData.items.slice(0, 10).forEach(article => {
+                const urlSafe = article.link.replace(/'/g, "\\'"); 
                 const titleSafe = article.title.replace(/'/g, "\\'");
-                const favClass = isFavori(article.url) ? 'active' : '';
+                const favClass = isFavori(article.link) ? 'active' : '';
                 
                 htmlContent += `
                     <div class="card">
@@ -79,12 +86,11 @@ async function fetchActualites() {
                             <i class="fas fa-star"></i>
                         </button>
                         <h3>${article.title}</h3>
-                        <p>${article.description || ''}</p>
-                        <a href="${article.url}" target="_blank" style="color: var(--primary-color); text-decoration: none;">Lire l'article <i class="fas fa-arrow-right"></i></a>
+                        <a href="${article.link}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire l'article <i class="fas fa-arrow-right"></i></a>
                     </div>`;
             });
         }
-        contentArea.innerHTML = htmlContent;
+        contentArea.innerHTML = htmlContent || "<p>Aucune actualité trouvée.</p>";
     } catch (e) { contentArea.innerHTML = "Erreur de chargement des actualités."; }
 }
 
@@ -111,15 +117,12 @@ function loadFavoris() {
 
 async function fetchMeteo() {
     try {
-        // Bastogne par défaut. On demande Météo + UV directement à Open-Meteo !
-        const lat = 50.0, lon = 5.7;
+        const lat = 50.0, lon = 5.7; // Bastogne
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=uv_index_max&timezone=Europe/Brussels`);
         const data = await res.json();
         
         const meteo = data.current_weather;
         const uvMax = data.daily.uv_index_max[0];
-        
-        // Couleur de l'UV selon dangerosité
         let uvColor = uvMax < 3 ? '#10b981' : (uvMax < 6 ? '#f59e0b' : '#ef4444');
 
         contentArea.innerHTML = `
@@ -140,24 +143,28 @@ async function fetchMeteo() {
                     <span class="badge-uv" style="background-color: ${uvColor};">UV: ${uvMax}</span>
                 </div>
             </div>
-            <div class="card" style="grid-column: 1 / -1;">
-                <h3><i class="fas fa-fire-flame-curved"></i> Risque Feux de Forêt (Copernicus)</h3>
-                <p><em>Vue satellite en direct</em></p>
-                <iframe src="https://gwis.jrc.ec.europa.eu/apps/gwis.viewer/" width="100%" height="400" style="border:none; border-radius: 8px;"></iframe>
+            <div class="card" style="grid-column: 1 / -1; background: #fff1f2; border: 1px solid #fecdd3;">
+                <h3 style="color: #e11d48;"><i class="fas fa-fire-flame-curved"></i> Risque Feux de Forêt (Copernicus)</h3>
+                <p>Pour des raisons de sécurité imposées par l'UE, la carte interactive s'ouvre sur un nouvel onglet sécurisé.</p>
+                <a href="https://effis.jrc.ec.europa.eu/apps/effis.current_situation/" target="_blank" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #e11d48; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                    <i class="fas fa-map-marked-alt"></i> Ouvrir la carte satellite en direct
+                </a>
             </div>`;
     } catch (e) { contentArea.innerHTML = "Erreur météo."; }
 }
 
 async function fetchEphemeride() {
     try {
-        // Appel via une API publique française gratuite
         const res = await fetch('https://nominis.cef.fr/json/nominis.php');
         const data = await res.json();
+        
+        // CORRECTION DE LA STRUCTURE ICI
+        const prenomSaint = data.response.prenoms.majeur.prenom;
         
         contentArea.innerHTML = `
             <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
                 <h2 style="color: var(--primary-color); font-size: 2rem;">Aujourd'hui, nous fêtons</h2>
-                <h1 style="margin: 20px 0; font-size: 3rem;">Saint(e) ${data.response.prenom}</h1>
+                <h1 style="margin: 20px 0; font-size: 3rem;">Saint(e) ${prenomSaint}</h1>
             </div>`;
     } catch (e) { 
         contentArea.innerHTML = "<p>Impossible de charger le saint du jour.</p>"; 
@@ -184,11 +191,10 @@ async function fetchTV() {
         html += '</ul>';
         document.getElementById('tv-list').innerHTML = html;
     } catch(e) {
-        document.getElementById('tv-list').innerHTML = "<p>Les données XMLTV sont trop lourdes, un système simplifié a été mis en place.</p>";
+        document.getElementById('tv-list').innerHTML = "<p>Les données sont indisponibles pour le moment.</p>";
     }
 }
 
-// ... La partie loadIA() et askIA() reste exactement la même que dans ta V1 !
 function loadIA() {
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
@@ -213,3 +219,8 @@ async function askIA() {
         responseDiv.innerText = data.reply || "Erreur IA";
     } catch (e) { responseDiv.innerText = "Erreur de connexion au serveur IA."; }
 }
+
+// Initialisation au chargement de la page
+window.onload = () => {
+    loadSection('actu');
+};
