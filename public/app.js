@@ -36,6 +36,7 @@ function loadSection(section) {
         case 'meteo': sectionTitle.innerText = "Météo & Climat"; fetchMeteo(); break;
         case 'ephemeride': sectionTitle.innerText = "Éphéméride"; fetchEphemeride(); break;
         case 'tv': sectionTitle.innerText = "Programme TV"; fetchTV(); break;
+        case 'cinema': sectionTitle.innerText = "Cinéma Bastogne"; fetchCinema(); break; // <-- NOUVELLE LIGNE
         case 'ia': sectionTitle.innerText = "Assistant Groq"; loadIA(); break;
     }
 }
@@ -233,6 +234,42 @@ async function fetchTV() {
     } catch(e) {
         document.getElementById('tv-list').innerHTML = "<p>Les données sont indisponibles pour le moment.</p>";
     }
+    // --- SECTION CINÉMA BASTOGNE ---
+async function fetchCinema() {
+    try {
+        // On utilise ton lien JSON RSS.app
+        const res = await fetch('https://rss.app/feeds/v1.1/S3YoZYcSfg6I1jUl.json');
+        const data = await res.json();
+        
+        let htmlContent = '<div style="grid-column: 1 / -1; margin-bottom: 20px;"><p>Voici les dernières sorties et horaires pour le cinéma CineXtra de Bastogne :</p></div>';
+
+        if (data.items && data.items.length > 0) {
+            data.items.forEach(item => {
+                const title = item.title || 'Film sans titre';
+                const url = item.url || '#';
+                // RSS.app met souvent le contenu formaté dans content_html
+                const content = item.content_html || item.summary || 'Aucune description.';
+
+                htmlContent += `
+                    <div class="card" style="border-left: 4px solid #eab308;">
+                        <h3 style="margin-bottom: 10px;">${title}</h3>
+                        <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
+                            ${content}
+                        </div>
+                        <a href="${url}" target="_blank" style="color: #eab308; text-decoration: none; margin-top: 15px; display: inline-block; font-weight: bold;">
+                            Réserver / Détails <i class="fas fa-ticket-alt"></i>
+                        </a>
+                    </div>`;
+            });
+        } else {
+            htmlContent += '<p>Aucun horaire trouvé pour le moment.</p>';
+        }
+
+        contentArea.innerHTML = htmlContent;
+    } catch (e) {
+        contentArea.innerHTML = "<p>Erreur lors du chargement des données du cinéma.</p>";
+    }
+}
 }
 
 // --- SYSTÈME DE CHAT (GROQ) ---
