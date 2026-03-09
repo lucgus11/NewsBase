@@ -5,7 +5,6 @@ document.getElementById('menu-toggle').addEventListener('click', () => {
 const contentArea = document.getElementById('content-area');
 const sectionTitle = document.getElementById('section-title');
 
-// --- SYSTÈME DE FAVORIS (LocalStorage) ---
 let favoris = JSON.parse(localStorage.getItem('newsbase_favoris')) || [];
 
 function toggleFavori(titre, url, description) {
@@ -25,7 +24,6 @@ function isFavori(url) {
     return favoris.some(fav => fav.url === url);
 }
 
-// --- GESTION DES SECTIONS ---
 function loadSection(section) {
     contentArea.innerHTML = '<div><i class="fas fa-spinner fa-spin"></i> Chargement des données...</div>';
     if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
@@ -40,8 +38,6 @@ function loadSection(section) {
         case 'ia': sectionTitle.innerText = "Assistant Groq"; loadIA(); break;
     }
 }
-
-// --- APPELS AUX API DIRECTS ---
 
 async function fetchActualites() {
     try {
@@ -139,7 +135,7 @@ function loadFavoris() {
 
 async function fetchMeteo() {
     try {
-        const lat = 50.0, lon = 5.7; // Bastogne
+        const lat = 50.0, lon = 5.7; 
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=uv_index_max&timezone=Europe/Brussels`);
         const data = await res.json();
         
@@ -234,13 +230,12 @@ async function fetchTV() {
     }
 }
 
-// --- SECTION CINÉMA BASTOGNE ---
 async function fetchCinema() {
     try {
         const res = await fetch('https://rss.app/feeds/v1.1/S3YoZYcSfg6I1jUl.json');
         const data = await res.json();
         
-        let htmlContent = '<div style="grid-column: 1 / -1; margin-bottom: 20px;"><p>Voici les dernières sorties et horaires pour le cinéma CineXtra de Bastogne :</p></div>';
+        let htmlContent = '<div style="grid-column: 1 / -1; margin-bottom: 20px;"><p>Voici les dernières sorties et horaires pour le cinéma de Bastogne :</p></div>';
 
         if (data.items && data.items.length > 0) {
             data.items.forEach(item => {
@@ -249,12 +244,10 @@ async function fetchCinema() {
                 const content = item.content_html || item.summary || 'Aucune description.';
 
                 htmlContent += `
-                    <div class="card" style="border-left: 4px solid #eab308; display: flex; flex-direction: column; justify-content: space-between;">
-                        <div>
-                            <h3 style="margin-bottom: 10px;">${title}</h3>
-                            <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
-                                ${content}
-                            </div>
+                    <div class="card" style="border-left: 4px solid #eab308;">
+                        <h3 style="margin-bottom: 10px;">${title}</h3>
+                        <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
+                            ${content}
                         </div>
                         <a href="${url}" target="_blank" style="color: #eab308; text-decoration: none; margin-top: 15px; display: inline-block; font-weight: bold;">
                             Réserver / Détails <i class="fas fa-ticket-alt"></i>
@@ -271,7 +264,6 @@ async function fetchCinema() {
     }
 }
 
-// --- SYSTÈME DE CHAT (GROQ) ---
 let chatHistory = []; 
 
 function loadIA() {
@@ -341,7 +333,6 @@ async function askIA() {
     loadIA();
 }
 
-// --- POP-UP PWA (Installation) ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -380,10 +371,8 @@ function showInstallPopup() {
     });
 }
 
-// --- INITIALISATION AU CHARGEMENT ---
 window.onload = () => {
     loadSection('actu');
-    
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Erreur Service Worker:', err));
     }
