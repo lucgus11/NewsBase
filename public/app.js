@@ -46,52 +46,47 @@ async function fetchActualites() {
     try {
         let htmlContent = '';
         
-        // 1. API Perso (GitHub)
-        try {
-            const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
-            if(persoRes.ok) {
-                const persoData = await persoRes.json();
-                // Si ton JSON est un tableau (plusieurs actus) on prend la première, sinon l'objet unique
-                const actuPerso = Array.isArray(persoData) ? persoData[0] : persoData;
-                
-                const titleSafe = (actuPerso.title || 'Actu Perso').replace(/'/g, "\\'");
-                const urlSafe = (actuPerso.url || '#').replace(/'/g, "\\'");
-                const favClass = isFavori(urlSafe) ? 'active' : '';
-                
-                htmlContent += `
-                    <div class="card" style="border-left: 4px solid var(--primary-color);">
-                        <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <h3><i class="fas fa-thumbtack"></i> ${actuPerso.title || 'Information'}</h3>
-                        <p>${actuPerso.content || actuPerso.description || 'Détails dans le fichier JSON.'}</p>
-                    </div>`;
-            }
-        } catch(e) { console.log("Erreur chargement actu perso"); }
-
-        // 2. Flux d'actualités (Contournement de NewsAPI qui bloque Vercel)
-        // On utilise l'API publique rss2json pour lire les infos en direct (ex: France Info)
-        const newsRes = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.francetvinfo.fr%2Ftitres.rss');
-        const newsData = await newsRes.json();
+        // On appelle TON fichier JSON (en utilisant le lien "raw" de GitHub)
+        const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
         
-        if(newsData.items) {
-            newsData.items.slice(0, 10).forEach(article => {
-                const urlSafe = article.link.replace(/'/g, "\\'"); 
-                const titleSafe = article.title.replace(/'/g, "\\'");
-                const favClass = isFavori(article.link) ? 'active' : '';
-                
-                htmlContent += `
-                    <div class="card">
-                        <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <h3>${article.title}</h3>
-                        <a href="${article.link}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire l'article <i class="fas fa-arrow-right"></i></a>
-                    </div>`;
-            });
+        if(persoRes.ok) {
+            const persoData = await persoRes.json();
+            
+            // S'assurer que les données soient traitées comme une liste
+            const articles = Array.isArray(persoData) ? persoData : [persoData];
+            
+            if (articles.length === 0) {
+                htmlContent = '<p>Aucune actualité trouvée dans ton fichier JSON.</p>';
+            } else {
+                articles.forEach(actu => {
+                    const titleSafe = (actu.title || 'Information').replace(/'/g, "\\'");
+                    const urlSafe = (actu.url || actu.link || '#').replace(/'/g, "\\'");
+                    const favClass = isFavori(urlSafe) ? 'active' : '';
+                    
+                    const lienHtml = urlSafe !== '#' 
+                        ? `<a href="${urlSafe}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire la suite <i class="fas fa-arrow-right"></i></a>` 
+                        : '';
+
+                    htmlContent += `
+                        <div class="card" style="border-left: 4px solid var(--primary-color);">
+                            <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
+                                <i class="fas fa-star"></i>
+                            </button>
+                            <h3><i class="fas fa-newspaper"></i> ${actu.title || 'Info sans titre'}</h3>
+                            <p>${actu.content || actu.description || 'Aucun détail fourni.'}</p>
+                            ${lienHtml}
+                        </div>`;
+                });
+            }
+        } else {
+            htmlContent = '<p>Impossible de lire ton fichier JSON sur GitHub. Vérifie que le fichier existe et est public.</p>';
         }
-        contentArea.innerHTML = htmlContent || "<p>Aucune actualité trouvée.</p>";
-    } catch (e) { contentArea.innerHTML = "Erreur de chargement des actualités."; }
+
+        contentArea.innerHTML = htmlContent;
+    } catch (e) { 
+        contentArea.innerHTML = "<p>Erreur de chargement de tes actualités. Vérifie le format de ton fichier JSON.</p>"; 
+        console.error(e);
+    }
 }
 
 function loadFavoris() {
@@ -158,7 +153,6 @@ async function fetchEphemeride() {
         const res = await fetch('https://nominis.cef.fr/json/nominis.php');
         const data = await res.json();
         
-        // CORRECTION DE LA STRUCTURE ICI
         const prenomSaint = data.response.prenoms.majeur.prenom;
         
         contentArea.innerHTML = `
