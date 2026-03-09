@@ -5,6 +5,7 @@ document.getElementById('menu-toggle').addEventListener('click', () => {
 const contentArea = document.getElementById('content-area');
 const sectionTitle = document.getElementById('section-title');
 
+// --- SYSTÈME DE FAVORIS (LocalStorage) ---
 let favoris = JSON.parse(localStorage.getItem('newsbase_favoris')) || [];
 
 function toggleFavori(titre, url, description) {
@@ -24,6 +25,7 @@ function isFavori(url) {
     return favoris.some(fav => fav.url === url);
 }
 
+// --- GESTION DES SECTIONS ---
 function loadSection(section) {
     contentArea.innerHTML = '<div><i class="fas fa-spinner fa-spin"></i> Chargement des données...</div>';
     if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
@@ -34,14 +36,16 @@ function loadSection(section) {
         case 'meteo': sectionTitle.innerText = "Météo & Climat"; fetchMeteo(); break;
         case 'ephemeride': sectionTitle.innerText = "Éphéméride"; fetchEphemeride(); break;
         case 'tv': sectionTitle.innerText = "Programme TV"; fetchTV(); break;
-        case 'cinema': sectionTitle.innerText = "Cinéma Bastogne"; fetchCinema(); break;
         case 'ia': sectionTitle.innerText = "Assistant Groq"; loadIA(); break;
     }
 }
 
+// --- APPELS AUX API DIRECTS ---
+
 async function fetchActualites() {
     try {
         let htmlContent = '';
+        // Ajout du paramètre ?t= et cache: 'no-store' pour forcer le rafraîchissement (Cache-busting)
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json?t=' + new Date().getTime(), { cache: 'no-store' });
         
         if(persoRes.ok) {
@@ -135,7 +139,7 @@ function loadFavoris() {
 
 async function fetchMeteo() {
     try {
-        const lat = 50.0, lon = 5.7; 
+        const lat = 50.0, lon = 5.7; // Bastogne
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=uv_index_max&timezone=Europe/Brussels`);
         const data = await res.json();
         
@@ -143,6 +147,7 @@ async function fetchMeteo() {
         const uvMax = data.daily.uv_index_max[0];
         let uvColor = uvMax < 3 ? '#10b981' : (uvMax < 6 ? '#f59e0b' : '#ef4444');
 
+        // Récupération des feux via API publique de la NASA (EONET)
         let nasaHtml = '<p>Recherche en cours...</p>';
         try {
             const fireRes = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=3');
@@ -230,43 +235,11 @@ async function fetchTV() {
     }
 }
 
-async function fetchCinema() {
-    try {
-        const res = await fetch('https://rss.app/feeds/v1.1/S3YoZYcSfg6I1jUl.json');
-        const data = await res.json();
-        
-        let htmlContent = '<div style="grid-column: 1 / -1; margin-bottom: 20px;"><p>Voici les dernières sorties et horaires pour le cinéma de Bastogne :</p></div>';
-
-        if (data.items && data.items.length > 0) {
-            data.items.forEach(item => {
-                const title = item.title || 'Film sans titre';
-                const url = item.url || '#';
-                const content = item.content_html || item.summary || 'Aucune description.';
-
-                htmlContent += `
-                    <div class="card" style="border-left: 4px solid #eab308;">
-                        <h3 style="margin-bottom: 10px;">${title}</h3>
-                        <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
-                            ${content}
-                        </div>
-                        <a href="${url}" target="_blank" style="color: #eab308; text-decoration: none; margin-top: 15px; display: inline-block; font-weight: bold;">
-                            Réserver / Détails <i class="fas fa-ticket-alt"></i>
-                        </a>
-                    </div>`;
-            });
-        } else {
-            htmlContent += '<p>Aucun horaire trouvé pour le moment.</p>';
-        }
-
-        contentArea.innerHTML = htmlContent;
-    } catch (e) {
-        contentArea.innerHTML = "<p>Erreur lors du chargement des données du cinéma.</p>";
-    }
-}
-
-let chatHistory = []; 
+// --- SYSTÈME DE CHAT (GROQ) ---
+let chatHistory = []; // La mémoire de la conversation
 
 function loadIA() {
+    // Construction des bulles de discussion
     let messagesHtml = chatHistory.length === 0 
         ? "<p style='color: #888; font-style: italic; text-align: center; margin-top: 20px;'>Début de la conversation avec Groq...</p>" 
         : '';
@@ -293,6 +266,7 @@ function loadIA() {
             </div>
         </div>`;
         
+    // Faire défiler la boîte de chat tout en bas automatiquement
     const chatBox = document.getElementById('chat-box');
     if(chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -302,10 +276,16 @@ async function askIA() {
     const userText = promptInput.value.trim();
     if (!userText) return;
 
+    // 1. On ajoute le message de l'utilisateur à l'historique
     chatHistory.push({ role: 'user', content: userText });
+    
+    // On efface le champ texte pour la prochaine question
     promptInput.value = '';
+    
+    // On rafraîchit l'affichage pour montrer la bulle de l'utilisateur
     loadIA();
 
+    // 2. On affiche un message de chargement temporaire
     const chatBox = document.getElementById('chat-box');
     chatBox.innerHTML += `
         <div style="margin-bottom: 15px; text-align: left;">
@@ -313,6 +293,7 @@ async function askIA() {
         </div>`;
     chatBox.scrollTop = chatBox.scrollHeight;
 
+    // 3. On envoie TOUT l'historique au serveur
     try {
         const res = await fetch('/api/chat', {
             method: 'POST',
@@ -321,6 +302,7 @@ async function askIA() {
         });
         const data = await res.json();
         
+        // 4. On ajoute la réponse de l'IA à l'historique
         if (data.error) {
             chatHistory.push({ role: 'assistant', content: "❌ Erreur : " + data.error });
         } else {
@@ -330,9 +312,11 @@ async function askIA() {
         chatHistory.push({ role: 'assistant', content: "Erreur de connexion au serveur IA." });
     }
     
+    // 5. On rafraîchit l'affichage final
     loadIA();
 }
 
+// --- POP-UP PWA (Installation) ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -371,8 +355,11 @@ function showInstallPopup() {
     });
 }
 
+// --- INITIALISATION AU CHARGEMENT ---
 window.onload = () => {
     loadSection('actu');
+    
+    // Le code vital pour la PWA
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Erreur Service Worker:', err));
     }
