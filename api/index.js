@@ -52,49 +52,45 @@ app.post('/api/chat', async (req, res) => {
 
 // --- ROUTE PROGRAMME TV ---
     async function fetchTV() {
-    // 1. On prépare l'affichage
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
-            <h3><i class="fas fa-tv"></i> Programme TV (Aujourd'hui)</h3>
-            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Chargement des programmes...</div>
+            <h3><i class="fas fa-tv"></i> Programme TV</h3>
+            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Connexion à TVMaze...</div>
         </div>`;
         
     try {
-        // 2. On récupère la date du jour au format AAAA-MM-JJ
-        const today = new Date().toISOString().split('T')[0];
+        // On récupère le programme "mondial" (sans country=FR) pour vérifier que l'API répond
+        // Cela évite les erreurs si le programme FR est vide à cette heure précise
+        const res = await fetch(`https://api.tvmaze.com/schedule`);
         
-        // 3. APPEL DIRECT à TVMaze (on utilise 'FR' pour les chaînes francophones ou 'BE' pour la Belgique)
-        // Je mets 'FR' ici car l'API TVMaze a beaucoup plus de données pour ce pays
-        const res = await fetch(`https://api.tvmaze.com/schedule?country=FR&date=${today}`);
-        
-        if (!res.ok) throw new Error("Erreur réseau");
+        if (!res.ok) throw new Error("Réponse serveur : " + res.status);
         const data = await res.json();
 
         const tvListDiv = document.getElementById('tv-list');
 
         if (!data || data.length === 0) {
-            tvListDiv.innerHTML = "<p>Aucun programme trouvé pour aujourd'hui.</p>";
+            tvListDiv.innerHTML = "<p>Aucun programme mondial trouvé actuellement.</p>";
             return;
         }
 
-        // 4. On trie les programmes par heure
+        // Tri par heure
         data.sort((a, b) => a.airtime.localeCompare(b.airtime));
 
-        // 5. On génère le HTML
-        let html = '<div style="display: flex; flex-direction: column; gap: 5px; margin-top: 15px;">';
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;">';
         
-        // On limite aux 25 premiers résultats pour la clarté
-        data.slice(0, 25).forEach(prog => {
-            const heure = prog.airtime;
-            const chaine = prog.show.network ? prog.show.network.name : "Web";
-            const titre = prog.show.name;
+        // On prend les 20 premiers
+        data.slice(0, 20).forEach(prog => {
+            const heure = prog.airtime || "??:??";
+            const chaine = (prog.show && prog.show.network) ? prog.show.network.name : "Streaming";
+            const titre = prog.show ? prog.show.name : "Émission";
+            const pays = (prog.show && prog.show.network && prog.show.network.country) ? `(${prog.show.network.country.code})` : "";
 
             html += `
                 <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
-                    <span style="font-weight: bold; color: var(--primary-color); min-width: 55px;">${heure}</span>
+                    <span style="font-weight: bold; color: var(--primary-color); min-width: 60px;">${heure}</span>
                     <div style="flex-grow: 1;">
-                        <strong style="color: #374151;">${chaine}</strong> : 
-                        <span style="color: #4b5563;">${titre}</span>
+                        <small style="color: #9ca3af; display: block;">${chaine} ${pays}</small>
+                        <strong style="color: #374151;">${titre}</strong>
                     </div>
                 </div>`;
         });
@@ -103,7 +99,9 @@ app.post('/api/chat', async (req, res) => {
         tvListDiv.innerHTML = html;
 
     } catch(e) {
-        console.error("Erreur TVMaze:", e);
-        document.getElementById('tv-list').innerHTML = "<p>Service TV temporairement indisponible (Erreur de connexion).</p>";
+        console.error("Erreur détaillée:", e);
+        document.getElementById('tv-list').innerHTML = `
+            <p style="color: #ef4444;">Erreur : ${e.message}</p>
+            <p style="font-size: 0.8rem; margin-top: 10px;">Note : Si vous utilisez un bloqueur de pub (AdBlock), il bloque peut-être l'accès à l'API.</p>`;
     }
 }
