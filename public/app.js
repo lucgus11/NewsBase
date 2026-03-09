@@ -36,7 +36,7 @@ function loadSection(section) {
         case 'meteo': sectionTitle.innerText = "Météo & Climat"; fetchMeteo(); break;
         case 'ephemeride': sectionTitle.innerText = "Éphéméride"; fetchEphemeride(); break;
         case 'tv': sectionTitle.innerText = "Programme TV"; fetchTV(); break;
-        case 'ia': sectionTitle.innerText = "Assistant Claude"; loadIA(); break;
+        case 'ia': sectionTitle.innerText = "Assistant Groq"; loadIA(); break;
     }
 }
 
@@ -45,6 +45,7 @@ function loadSection(section) {
 async function fetchActualites() {
     try {
         let htmlContent = '';
+        // Ajout du paramètre ?t= et cache: 'no-store' pour forcer le rafraîchissement (Cache-busting)
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json?t=' + new Date().getTime(), { cache: 'no-store' });
         
         if(persoRes.ok) {
@@ -191,16 +192,13 @@ async function fetchMeteo() {
 
 async function fetchEphemeride() {
     try {
-        // Récupérer le mois et le jour actuels
         const date = new Date();
         const mois = (date.getMonth() + 1).toString().padStart(2, '0');
         const jour = date.getDate().toString().padStart(2, '0');
 
-        // Appel à l'API gratuite, ultra-rapide et fiable de Wikipédia
         const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mois}/${jour}`);
         const data = await res.json();
         
-        // On prend le premier événement historique de la liste
         const evenement = data.events[0];
         
         contentArea.innerHTML = `
@@ -237,37 +235,85 @@ async function fetchTV() {
     }
 }
 
+// --- SYSTÈME DE CHAT (GROQ) ---
+let chatHistory = []; // La mémoire de la conversation
+
 function loadIA() {
+    // Construction des bulles de discussion
+    let messagesHtml = chatHistory.length === 0 
+        ? "<p style='color: #888; font-style: italic; text-align: center; margin-top: 20px;'>Début de la conversation avec Groq...</p>" 
+        : '';
+        
+    chatHistory.forEach(msg => {
+        const isUser = msg.role === 'user';
+        messagesHtml += `
+            <div style="margin-bottom: 15px; text-align: ${isUser ? 'right' : 'left'};">
+                <span style="display: inline-block; padding: 10px 15px; border-radius: 15px; background: ${isUser ? 'var(--primary-color)' : '#e5e7eb'}; color: ${isUser ? 'white' : 'black'}; max-width: 85%; text-align: left; white-space: pre-wrap; line-height: 1.4;">${msg.content}</span>
+            </div>`;
+    });
+
     contentArea.innerHTML = `
-        <div class="card" style="grid-column: 1 / -1;">
-            <h3>Assistant Claude AI</h3>
-            <textarea id="prompt" style="width: 100%; height: 100px; padding: 10px;" placeholder="Posez une question..."></textarea>
-            <button onclick="askIA()" style="padding: 10px; background: #2563eb; color: white; border: none; cursor: pointer; margin-top: 10px; border-radius:5px;">Envoyer</button>
-            <div id="ia-response" style="margin-top: 15px; white-space: pre-wrap; line-height: 1.5;"></div>
+        <div class="card" style="grid-column: 1 / -1; display: flex; flex-direction: column; height: 75vh;">
+            <h3><i class="fas fa-robot"></i> Assistant Groq AI</h3>
+            <div id="chat-box" style="flex-grow: 1; overflow-y: auto; border: 1px solid #e5e7eb; padding: 15px; margin-bottom: 10px; border-radius: 8px; background: #f9fafb;">
+                ${messagesHtml}
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <textarea id="prompt" style="flex-grow: 1; height: 60px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; resize: none;" placeholder="Posez une question..."></textarea>
+                <button onclick="askIA()" style="padding: 0 20px; background: var(--primary-color); color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold;">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </div>`;
+        
+    // Faire défiler la boîte de chat tout en bas automatiquement
+    const chatBox = document.getElementById('chat-box');
+    if(chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 async function askIA() {
-    const prompt = document.getElementById('prompt').value;
-    const responseDiv = document.getElementById('ia-response');
-    responseDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Réflexion en cours...';
+    const promptInput = document.getElementById('prompt');
+    const userText = promptInput.value.trim();
+    if (!userText) return;
+
+    // 1. On ajoute le message de l'utilisateur à l'historique
+    chatHistory.push({ role: 'user', content: userText });
+    
+    // On efface le champ texte pour la prochaine question
+    promptInput.value = '';
+    
+    // On rafraîchit l'affichage pour montrer la bulle de l'utilisateur
+    loadIA();
+
+    // 2. On affiche un message de chargement temporaire
+    const chatBox = document.getElementById('chat-box');
+    chatBox.innerHTML += `
+        <div style="margin-bottom: 15px; text-align: left;">
+            <span style="display: inline-block; padding: 10px 15px; border-radius: 15px; background: #e5e7eb; color: black;"><i class="fas fa-spinner fa-spin"></i> Groq réfléchit...</span>
+        </div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // 3. On envoie TOUT l'historique au serveur
     try {
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: prompt })
+            body: JSON.stringify({ messages: chatHistory })
         });
         const data = await res.json();
         
-        // Affichage précis de l'erreur Vercel pour t'aider à débugger
+        // 4. On ajoute la réponse de l'IA à l'historique
         if (data.error) {
-            responseDiv.innerHTML = `<span style="color: red;">${data.error}</span>`;
+            chatHistory.push({ role: 'assistant', content: "❌ Erreur : " + data.error });
         } else {
-            responseDiv.innerText = data.reply || "Réponse vide de l'IA.";
+            chatHistory.push({ role: 'assistant', content: data.reply || "Réponse vide." });
         }
     } catch (e) { 
-        responseDiv.innerText = "Erreur de connexion au serveur IA (Timeout Vercel ou Problème réseau)."; 
+        chatHistory.push({ role: 'assistant', content: "Erreur de connexion au serveur IA." });
     }
+    
+    // 5. On rafraîchit l'affichage final
+    loadIA();
 }
 
 // --- POP-UP PWA (Installation) ---
