@@ -51,14 +51,51 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // --- ROUTE PROGRAMME TV ---
-app.get('/api/tv', async (req, res) => {
-    const programmeTV = [
-        { chaine: "TF1", titre: "Film du dimanche soir" },
-        { chaine: "France 2", titre: "Journal de 20h" },
-        { chaine: "M6", titre: "Zone Interdite" },
-        { chaine: "Arte", titre: "Documentaire historique" }
-    ];
-    res.json(programmeTV);
-});
+async function fetchTV() {
+    contentArea.innerHTML = `
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3><i class="fas fa-tv"></i> Programme TV (Aujourd'hui)</h3>
+            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Consultation de TVMaze...</div>
+        </div>`;
+        
+    try {
+        // Récupère les programmes de la Belgique (BE) pour la date du jour
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`https://api.tvmaze.com/schedule?country=BE&date=${today}`);
+        const data = await res.json();
 
-module.exports = app;
+        if (!data || data.length === 0) {
+            document.getElementById('tv-list').innerHTML = "<p>Aucun programme trouvé pour aujourd'hui.</p>";
+            return;
+        }
+
+        // On trie par heure de diffusion
+        data.sort((a, b) => a.airtime.localeCompare(b.airtime));
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">';
+        
+        // On affiche les 20 premiers programmes pour ne pas surcharger
+        data.slice(0, 20).forEach(prog => {
+            const heure = prog.airtime;
+            const chaine = prog.show.network ? prog.show.network.name : "Web";
+            const titre = prog.show.name;
+            const episode = prog.name !== titre ? ` - ${prog.name}` : "";
+
+            html += `
+                <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
+                    <span style="font-weight: bold; color: var(--primary-color); min-width: 50px;">${heure}</span>
+                    <div style="flex-grow: 1;">
+                        <strong style="color: #374151;">${chaine}</strong> : 
+                        <span style="color: #4b5563;">${titre}${episode}</span>
+                    </div>
+                </div>`;
+        });
+        
+        html += '</div>';
+        document.getElementById('tv-list').innerHTML = html;
+
+    } catch(e) {
+        console.error("Erreur TVMaze:", e);
+        document.getElementById('tv-list').innerHTML = "<p>Erreur lors de la récupération du programme TV.</p>";
+    }
+}
