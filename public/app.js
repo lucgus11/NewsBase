@@ -46,34 +46,58 @@ async function fetchActualites() {
     try {
         let htmlContent = '';
         
-        // On appelle TON fichier JSON (en utilisant le lien "raw" de GitHub)
+        // On appelle TON fichier JSON via GitHub Raw
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
         
         if(persoRes.ok) {
             const persoData = await persoRes.json();
             
-            // S'assurer que les données soient traitées comme une liste
-            const articles = Array.isArray(persoData) ? persoData : [persoData];
+            // Adaptation automatique selon si ton JSON contient les articles dans une liste directe, ou sous un nom comme "items"
+            let articles = [];
+            if (Array.isArray(persoData)) {
+                articles = persoData;
+            } else if (persoData.items && Array.isArray(persoData.items)) {
+                articles = persoData.items;
+            } else {
+                articles = [persoData];
+            }
             
             if (articles.length === 0) {
                 htmlContent = '<p>Aucune actualité trouvée dans ton fichier JSON.</p>';
             } else {
                 articles.forEach(actu => {
+                    // Récupération des données selon TA structure exacte
                     const titleSafe = (actu.title || 'Information').replace(/'/g, "\\'");
-                    const urlSafe = (actu.url || actu.link || '#').replace(/'/g, "\\'");
+                    const urlSafe = (actu.link || actu.url || '#').replace(/'/g, "\\'"); // 'link' en priorité
+                    const texteActu = actu.summary || actu.content || actu.description || 'Aucun détail fourni.'; // 'summary' en priorité
                     const favClass = isFavori(urlSafe) ? 'active' : '';
                     
+                    // Formatage de la date et de la source
+                    let infosSup = '';
+                    if (actu.published || actu.source) {
+                        let dateFr = '';
+                        if (actu.published) {
+                            const d = new Date(actu.published);
+                            dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                        }
+                        const sourceTexte = actu.source ? `<strong>${actu.source}</strong>` : '';
+                        const separateur = (sourceTexte && dateFr) ? ' - ' : '';
+                        infosSup = `<p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 8px;">${sourceTexte}${separateur}${dateFr}</p>`;
+                    }
+
                     const lienHtml = urlSafe !== '#' 
-                        ? `<a href="${urlSafe}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire la suite <i class="fas fa-arrow-right"></i></a>` 
+                        ? `<a href="${urlSafe}" target="_blank" style="color: var(--primary-color); text-decoration: none; margin-top: 10px; display: inline-block;">Lire l'article complet <i class="fas fa-arrow-right"></i></a>` 
                         : '';
 
+                    // Création de la carte HTML
                     htmlContent += `
                         <div class="card" style="border-left: 4px solid var(--primary-color);">
                             <button class="btn-fav ${favClass}" onclick="toggleFavori('${titleSafe}', '${urlSafe}', '')">
                                 <i class="fas fa-star"></i>
                             </button>
-                            <h3><i class="fas fa-newspaper"></i> ${actu.title || 'Info sans titre'}</h3>
-                            <p>${actu.content || actu.description || 'Aucun détail fourni.'}</p>
+                            ${infosSup}
+                            <h3>${actu.title || 'Info sans titre'}</h3>
+                            <p>${texteActu}</p>
                             ${lienHtml}
                         </div>`;
                 });
@@ -85,7 +109,7 @@ async function fetchActualites() {
         contentArea.innerHTML = htmlContent;
     } catch (e) { 
         contentArea.innerHTML = "<p>Erreur de chargement de tes actualités. Vérifie le format de ton fichier JSON.</p>"; 
-        console.error(e);
+        console.error("Erreur JSON :", e);
     }
 }
 
