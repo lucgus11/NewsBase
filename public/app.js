@@ -45,22 +45,17 @@ function loadSection(section) {
 async function fetchActualites() {
     try {
         let htmlContent = '';
-        
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
         
         if(persoRes.ok) {
             const persoData = await persoRes.json();
             
-            // --- FONCTION MAGIQUE POUR TROUVER LA LISTE D'ARTICLES ---
-            // Cette fonction fouille dans ton JSON pour trouver le vrai tableau qui contient les infos
             function trouverArticles(data) {
                 if (Array.isArray(data)) return data;
                 if (typeof data === 'object' && data !== null) {
-                    // 1. Cherche un tableau au premier niveau
                     for (let key in data) {
                         if (Array.isArray(data[key])) return data[key];
                     }
-                    // 2. Cherche un tableau plus en profondeur si caché dans d'autres sous-dossiers
                     for (let key in data) {
                         if (typeof data[key] === 'object') {
                             let resultat = trouverArticles(data[key]);
@@ -68,12 +63,10 @@ async function fetchActualites() {
                         }
                     }
                 }
-                return [data]; // Cas extrême si aucun tableau n'est trouvé
+                return [data];
             }
             
             let articles = trouverArticles(persoData);
-            
-            // On filtre pour enlever d'éventuels éléments vides du JSON
             articles = articles.filter(actu => actu && (actu.title || actu.summary));
 
             if (articles.length === 0) {
@@ -93,7 +86,7 @@ async function fetchActualites() {
                             if(!isNaN(d)) {
                                 dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
                             } else {
-                                dateFr = actu.published; // Garde la date brute si le format est spécial
+                                dateFr = actu.published; 
                             }
                         }
                         const sourceTexte = actu.source ? `<strong>${actu.source}</strong>` : '';
@@ -124,13 +117,12 @@ async function fetchActualites() {
         contentArea.innerHTML = htmlContent;
     } catch (e) { 
         contentArea.innerHTML = "<p>Erreur lors de l'analyse des actualités.</p>"; 
-        console.error("Erreur JSON :", e);
     }
 }
 
 function loadFavoris() {
     if (favoris.length === 0) {
-        contentArea.innerHTML = "<p>Vous n'avez aucun article en favori pour le moment. Cliquez sur l'étoile d'un article pour le sauvegarder !</p>";
+        contentArea.innerHTML = "<p>Vous n'avez aucun article en favori pour le moment.</p>";
         return;
     }
     
@@ -179,9 +171,9 @@ async function fetchMeteo() {
             </div>
             <div class="card" style="grid-column: 1 / -1; background: #fff1f2; border: 1px solid #fecdd3;">
                 <h3 style="color: #e11d48;"><i class="fas fa-fire-flame-curved"></i> Risque Feux de Forêt (Copernicus)</h3>
-                <p>Pour des raisons de sécurité imposées par l'UE, la carte interactive s'ouvre sur un nouvel onglet sécurisé.</p>
-                <a href="https://effis.jrc.ec.europa.eu/apps/effis.current_situation/" target="_blank" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #e11d48; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                    <i class="fas fa-map-marked-alt"></i> Ouvrir la carte satellite en direct
+                <p>Carte officielle du système européen d'information sur les feux de forêt.</p>
+                <a href="https://forest-fire.emergency.copernicus.eu/" target="_blank" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #e11d48; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                    <i class="fas fa-map-marked-alt"></i> Ouvrir la carte satellite
                 </a>
             </div>`;
     } catch (e) { contentArea.innerHTML = "Erreur météo."; }
@@ -189,9 +181,15 @@ async function fetchMeteo() {
 
 async function fetchEphemeride() {
     try {
-        const res = await fetch('https://nominis.cef.fr/json/nominis.php');
-        const data = await res.json();
+        // On utilise un proxy (AllOrigins) pour contourner le blocage de sécurité (CORS) de Nominis
+        const proxyUrl = 'https://api.allorigins.win/get?url=';
+        const targetUrl = encodeURIComponent('https://nominis.cef.fr/json/nominis.php');
         
+        const res = await fetch(proxyUrl + targetUrl);
+        const proxyData = await res.json();
+        
+        // Le proxy renvoie les données sous forme de texte, il faut les reconvertir en JSON
+        const data = JSON.parse(proxyData.contents);
         const prenomSaint = data.response.prenoms.majeur.prenom;
         
         contentArea.innerHTML = `
@@ -208,8 +206,7 @@ async function fetchTV() {
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
             <h3><i class="fas fa-tv"></i> Programme TV de ce soir</h3>
-            <p>Affichage en direct des données. (Chargement via Backend...)</p>
-            <div id="tv-list"></div>
+            <div id="tv-list">Chargement via Backend...</div>
         </div>`;
         
     try {
@@ -253,6 +250,53 @@ async function askIA() {
     } catch (e) { responseDiv.innerText = "Erreur de connexion au serveur IA."; }
 }
 
+// --- POP-UP PWA (Installation) ---
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Empêcher l'affichage de la mini-barre d'installation par défaut sur mobile
+    e.preventDefault();
+    // Sauvegarder l'événement pour pouvoir le déclencher plus tard au clic
+    deferredPrompt = e;
+    // Afficher notre propre pop-up
+    showInstallPopup();
+});
+
+function showInstallPopup() {
+    // Vérifier si le pop-up existe déjà pour ne pas le créer en double
+    if (document.getElementById('pwa-popup')) return;
+    
+    const popup = document.createElement('div');
+    popup.id = 'pwa-popup';
+    popup.innerHTML = `
+        <div style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 1000; display: flex; align-items: center; gap: 15px; border-left: 5px solid var(--primary-color); width: 90%; max-width: 400px;">
+            <div style="flex-grow: 1;">
+                <strong style="display: block; margin-bottom: 3px; font-size: 1rem;">Installer NewsBase</strong>
+                <span style="font-size: 0.8rem; color: #666;">Ajoute l'app sur ton appareil pour y accéder hors-ligne.</span>
+            </div>
+            <button id="btn-install-pwa" style="background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap;">Installer</button>
+            <button id="btn-close-pwa" style="background: none; border: none; color: #999; cursor: pointer; font-size: 1.5rem; line-height: 1;">&times;</button>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Action du bouton "Installer"
+    document.getElementById('btn-install-pwa').addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt(); // Affiche l'invite officielle du navigateur
+            const { outcome } = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            popup.remove();
+        }
+    });
+
+    // Action de la croix pour fermer
+    document.getElementById('btn-close-pwa').addEventListener('click', () => {
+        popup.remove();
+    });
+}
+
+// Initialisation au chargement de la page
 window.onload = () => {
     loadSection('actu');
 };
