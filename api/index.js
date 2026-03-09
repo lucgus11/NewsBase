@@ -7,12 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configuration de l'IA Claude avec la variable d'environnement
 const anthropic = new Anthropic({
     apiKey: process.env.CLAUDE_API_KEY,
 });
 
-// Route Backend pour News API
 app.get('/api/news', async (req, res) => {
     try {
         const response = await axios.get(`https://newsapi.org/v2/top-headlines?country=fr&apiKey=${process.env.NEWS_API_KEY}`);
@@ -22,7 +20,6 @@ app.get('/api/news', async (req, res) => {
     }
 });
 
-// Route Backend pour l'IA Claude
 app.post('/api/chat', async (req, res) => {
     try {
         const { message } = req.body;
@@ -37,5 +34,22 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// EXPORT OBLIGATOIRE POUR VERCEL
+// Nouvelle route pour le programme TV (Simulation légère)
+// Pour la V2, on parse un flux public plus léger pour éviter les crash Vercel
+app.get('/api/tv', async (req, res) => {
+    try {
+        // En conditions réelles avec le gros XMLTV, il faudrait une base de données.
+        // Ici on renvoie un JSON direct pour que ton app soit fluide.
+        const tvSoir = [
+            { chaine: "TF1", titre: "Film du dimanche soir" },
+            { chaine: "France 2", titre: "Journal de 20h puis Cinéma" },
+            { chaine: "M6", titre: "Capital / Zone Interdite" },
+            { chaine: "Arte", titre: "Documentaire historique" }
+        ];
+        res.json(tvSoir);
+    } catch (error) {
+        res.status(500).json({ error: "Erreur TV" });
+    }
+});
+
 module.exports = app;
