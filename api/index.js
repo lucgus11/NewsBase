@@ -5,17 +5,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- ROUTE IA (GROQ / LLAMA 3) ---
+// --- ROUTE IA (GROQ / LLAMA 3.1) ---
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message } = req.body;
+        // On récupère "messages" (un tableau) au lieu de "message" (un texte simple)
+        const { messages } = req.body; 
         const apiKey = process.env.GROQ_API_KEY;
 
         if (!apiKey) {
             return res.json({ reply: "⚠️ Erreur : Ta clé API Groq (GROQ_API_KEY) n'est pas configurée dans Vercel." });
         }
 
-        // Appel direct à l'API gratuite de Groq
+        // On ajoute les instructions de base avant l'historique de l'utilisateur
+        const systemInstruction = { 
+            role: "system", 
+            content: "Tu es l'assistant intelligent de l'application NewsBase. Tu dois répondre de manière claire, utile et toujours en français. Sois concis." 
+        };
+        const conversationComplete = [systemInstruction, ...messages];
+
+        // Appel à l'API de Groq
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -23,23 +31,22 @@ app.post('/api/chat', async (req, res) => {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "llama-3.1-8b-instant", // Le tout nouveau modèle Llama 3.1
-                messages: [{ role: "user", content: message }]
+                model: "llama-3.1-8b-instant",
+                messages: conversationComplete
             })
         });
 
         const data = await response.json();
 
         if (data.error) {
-            return res.json({ reply: "❌ Erreur Groq : " + data.error.message });
+            return res.json({ error: data.error.message });
         }
 
-        // Groq renvoie la réponse ici
         res.json({ reply: data.choices[0].message.content });
 
     } catch (error) {
         console.error("Erreur Serveur:", error);
-        res.json({ reply: "❌ Erreur interne du serveur : " + error.message });
+        res.json({ error: error.message });
     }
 });
 
