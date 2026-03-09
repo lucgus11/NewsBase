@@ -1,44 +1,54 @@
 const express = require('express');
 const cors = require('cors');
-const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialisation d'Anthropic (utilise la variable d'environnement de Vercel)
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// --- ROUTE IA (CLAUDE) ---
+// --- ROUTE IA (CLAUDE) VIA FETCH NATIF ---
 app.post('/api/chat', async (req, res) => {
     try {
         const { message } = req.body;
-        
-        // Vérification de sécurité au cas où la clé API est mal configurée
-        if (!process.env.ANTHROPIC_API_KEY) {
-            return res.status(500).json({ error: "Clé API Anthropic manquante dans les réglages Vercel." });
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+
+        // 1. Vérification de la clé
+        if (!apiKey) {
+            return res.json({ reply: "⚠️ Erreur Vercel : Ta clé API Anthropic (ANTHROPIC_API_KEY) n'est pas configurée dans les variables d'environnement de Vercel." });
         }
 
-        const msg = await anthropic.messages.create({
-            model: "claude-3-haiku-20240307", // Le modèle le plus rapide pour éviter le Timeout Vercel
-            max_tokens: 1024,
-            messages: [{ role: "user", content: message }]
+        // 2. Appel direct à Anthropic sans SDK (Anti-crash Vercel)
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "claude-3-haiku-20240307", // Ultra-rapide
+                max_tokens: 1024,
+                messages: [{ role: "user", content: message }]
+            })
         });
-        
-        res.json({ reply: msg.content[0].text });
+
+        const data = await response.json();
+
+        // 3. Gestion des erreurs renvoyées par Anthropic (ex: plus de crédits)
+        if (data.error) {
+            return res.json({ reply: "❌ Refus de l'API Claude : " + data.error.message });
+        }
+
+        // 4. Succès
+        res.json({ reply: data.content[0].text });
+
     } catch (error) {
-        console.error("Erreur API:", error);
-        // On renvoie l'erreur exacte au Frontend pour t'aider à débugger
-        res.status(500).json({ error: "Erreur Claude : " + error.message });
+        console.error("Erreur Serveur:", error);
+        res.json({ reply: "❌ Erreur interne du serveur : " + error.message });
     }
 });
 
 // --- ROUTE PROGRAMME TV ---
 app.get('/api/tv', async (req, res) => {
-    // Données de base pour que ton frontend affiche quelque chose.
-    // Plus tard, on pourra connecter ça à une vraie API de programmes TV !
     const programmeTV = [
         { chaine: "TF1", titre: "Film du dimanche soir" },
         { chaine: "France 2", titre: "Journal de 20h" },
@@ -48,5 +58,4 @@ app.get('/api/tv', async (req, res) => {
     res.json(programmeTV);
 });
 
-// Exportation obligatoire pour que Vercel comprenne que c'est une API
 module.exports = app;
