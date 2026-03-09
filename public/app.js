@@ -83,11 +83,8 @@ async function fetchActualites() {
                         let dateFr = '';
                         if (actu.published) {
                             const d = new Date(actu.published);
-                            if(!isNaN(d)) {
-                                dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
-                            } else {
-                                dateFr = actu.published; 
-                            }
+                            if(!isNaN(d)) dateFr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                            else dateFr = actu.published; 
                         }
                         const sourceTexte = actu.source ? `<strong>${actu.source}</strong>` : '';
                         const separateur = (sourceTexte && dateFr) ? ' - ' : '';
@@ -113,7 +110,6 @@ async function fetchActualites() {
         } else {
             htmlContent = '<p>Impossible de lire ton fichier JSON sur GitHub.</p>';
         }
-
         contentArea.innerHTML = htmlContent;
     } catch (e) { 
         contentArea.innerHTML = "<p>Erreur lors de l'analyse des actualités.</p>"; 
@@ -125,7 +121,6 @@ function loadFavoris() {
         contentArea.innerHTML = "<p>Vous n'avez aucun article en favori pour le moment.</p>";
         return;
     }
-    
     let htmlContent = '';
     favoris.forEach(fav => {
         const titleSafe = fav.titre.replace(/'/g, "\\'");
@@ -151,6 +146,24 @@ async function fetchMeteo() {
         const uvMax = data.daily.uv_index_max[0];
         let uvColor = uvMax < 3 ? '#10b981' : (uvMax < 6 ? '#f59e0b' : '#ef4444');
 
+        // Récupération des feux via API publique de la NASA (EONET)
+        let nasaHtml = '<p>Recherche en cours...</p>';
+        try {
+            const fireRes = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=3');
+            const fireData = await fireRes.json();
+            if(fireData.events && fireData.events.length > 0) {
+                nasaHtml = '<ul style="padding-left: 20px; margin-top: 10px;">';
+                fireData.events.forEach(event => {
+                    nasaHtml += `<li style="margin-bottom: 5px;"><strong>${event.title}</strong></li>`;
+                });
+                nasaHtml += '</ul>';
+            } else {
+                nasaHtml = '<p style="margin-top: 10px;">Aucun incendie majeur détecté récemment.</p>';
+            }
+        } catch(e) {
+            nasaHtml = '<p style="margin-top: 10px; color: red;">Erreur de connexion à la NASA.</p>';
+        }
+
         contentArea.innerHTML = `
             <div class="card">
                 <h3><i class="fas fa-temperature-half"></i> Météo Actuelle (Bastogne)</h3>
@@ -170,35 +183,34 @@ async function fetchMeteo() {
                 </div>
             </div>
             <div class="card" style="grid-column: 1 / -1; background: #fff1f2; border: 1px solid #fecdd3;">
-                <h3 style="color: #e11d48;"><i class="fas fa-fire-flame-curved"></i> Risque Feux de Forêt (Copernicus)</h3>
-                <p>Carte officielle du système européen d'information sur les feux de forêt.</p>
-                <a href="https://forest-fire.emergency.copernicus.eu/" target="_blank" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #e11d48; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                    <i class="fas fa-map-marked-alt"></i> Ouvrir la carte satellite
-                </a>
+                <h3 style="color: #e11d48;"><i class="fas fa-fire-flame-curved"></i> Incendies Majeurs en Direct (NASA API)</h3>
+                ${nasaHtml}
             </div>`;
     } catch (e) { contentArea.innerHTML = "Erreur météo."; }
 }
 
 async function fetchEphemeride() {
     try {
-        // On utilise un proxy (AllOrigins) pour contourner le blocage de sécurité (CORS) de Nominis
-        const proxyUrl = 'https://api.allorigins.win/get?url=';
-        const targetUrl = encodeURIComponent('https://nominis.cef.fr/json/nominis.php');
+        // Récupérer le mois et le jour actuels
+        const date = new Date();
+        const mois = (date.getMonth() + 1).toString().padStart(2, '0');
+        const jour = date.getDate().toString().padStart(2, '0');
+
+        // Appel à l'API gratuite, ultra-rapide et fiable de Wikipédia
+        const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mois}/${jour}`);
+        const data = await res.json();
         
-        const res = await fetch(proxyUrl + targetUrl);
-        const proxyData = await res.json();
-        
-        // Le proxy renvoie les données sous forme de texte, il faut les reconvertir en JSON
-        const data = JSON.parse(proxyData.contents);
-        const prenomSaint = data.response.prenoms.majeur.prenom;
+        // On prend le premier événement historique de la liste
+        const evenement = data.events[0];
         
         contentArea.innerHTML = `
             <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
-                <h2 style="color: var(--primary-color); font-size: 2rem;">Aujourd'hui, nous fêtons</h2>
-                <h1 style="margin: 20px 0; font-size: 3rem;">Saint(e) ${prenomSaint}</h1>
+                <h2 style="color: var(--primary-color); font-size: 2rem;"><i class="fas fa-landmark"></i> Éphéméride</h2>
+                <h3 style="margin: 10px 0; color: #6b7280;">Que s'est-il passé un ${jour}/${mois} ? (En ${evenement.year})</h3>
+                <p style="font-size: 1.2rem; margin-top: 20px; line-height: 1.5;">${evenement.text}</p>
             </div>`;
     } catch (e) { 
-        contentArea.innerHTML = "<p>Impossible de charger le saint du jour.</p>"; 
+        contentArea.innerHTML = "<p>Impossible de charger l'éphéméride historique aujourd'hui.</p>"; 
     }
 }
 
@@ -246,24 +258,27 @@ async function askIA() {
             body: JSON.stringify({ message: prompt })
         });
         const data = await res.json();
-        responseDiv.innerText = data.reply || "Erreur IA";
-    } catch (e) { responseDiv.innerText = "Erreur de connexion au serveur IA."; }
+        
+        // Affichage précis de l'erreur Vercel pour t'aider à débugger
+        if (data.error) {
+            responseDiv.innerHTML = `<span style="color: red;">${data.error}</span>`;
+        } else {
+            responseDiv.innerText = data.reply || "Réponse vide de l'IA.";
+        }
+    } catch (e) { 
+        responseDiv.innerText = "Erreur de connexion au serveur IA (Timeout Vercel ou Problème réseau)."; 
+    }
 }
 
 // --- POP-UP PWA (Installation) ---
 let deferredPrompt;
-
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Empêcher l'affichage de la mini-barre d'installation par défaut sur mobile
     e.preventDefault();
-    // Sauvegarder l'événement pour pouvoir le déclencher plus tard au clic
     deferredPrompt = e;
-    // Afficher notre propre pop-up
     showInstallPopup();
 });
 
 function showInstallPopup() {
-    // Vérifier si le pop-up existe déjà pour ne pas le créer en double
     if (document.getElementById('pwa-popup')) return;
     
     const popup = document.createElement('div');
@@ -274,29 +289,32 @@ function showInstallPopup() {
                 <strong style="display: block; margin-bottom: 3px; font-size: 1rem;">Installer NewsBase</strong>
                 <span style="font-size: 0.8rem; color: #666;">Ajoute l'app sur ton appareil pour y accéder hors-ligne.</span>
             </div>
-            <button id="btn-install-pwa" style="background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap;">Installer</button>
+            <button id="btn-install-pwa" style="background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold;">Installer</button>
             <button id="btn-close-pwa" style="background: none; border: none; color: #999; cursor: pointer; font-size: 1.5rem; line-height: 1;">&times;</button>
         </div>
     `;
     document.body.appendChild(popup);
 
-    // Action du bouton "Installer"
     document.getElementById('btn-install-pwa').addEventListener('click', async () => {
         if (deferredPrompt) {
-            deferredPrompt.prompt(); // Affiche l'invite officielle du navigateur
-            const { outcome } = await deferredPrompt.userChoice;
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
             deferredPrompt = null;
             popup.remove();
         }
     });
 
-    // Action de la croix pour fermer
     document.getElementById('btn-close-pwa').addEventListener('click', () => {
         popup.remove();
     });
 }
 
-// Initialisation au chargement de la page
+// --- INITIALISATION AU CHARGEMENT ---
 window.onload = () => {
     loadSection('actu');
+    
+    // Le code vital pour la PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.error('Erreur Service Worker:', err));
+    }
 };
