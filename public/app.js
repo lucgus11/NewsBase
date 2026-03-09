@@ -45,7 +45,7 @@ function loadSection(section) {
 async function fetchActualites() {
     try {
         let htmlContent = '';
-        const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json');
+        const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json?t=' + new Date().getTime(), { cache: 'no-store' });
         
         if(persoRes.ok) {
             const persoData = await persoRes.json();
