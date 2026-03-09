@@ -51,51 +51,59 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // --- ROUTE PROGRAMME TV ---
-async function fetchTV() {
+    async function fetchTV() {
+    // 1. On prépare l'affichage
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
             <h3><i class="fas fa-tv"></i> Programme TV (Aujourd'hui)</h3>
-            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Consultation de TVMaze...</div>
+            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Chargement des programmes...</div>
         </div>`;
         
     try {
-        // Récupère les programmes de la Belgique (BE) pour la date du jour
+        // 2. On récupère la date du jour au format AAAA-MM-JJ
         const today = new Date().toISOString().split('T')[0];
-        const res = await fetch(`https://api.tvmaze.com/schedule?country=BE&date=${today}`);
+        
+        // 3. APPEL DIRECT à TVMaze (on utilise 'FR' pour les chaînes francophones ou 'BE' pour la Belgique)
+        // Je mets 'FR' ici car l'API TVMaze a beaucoup plus de données pour ce pays
+        const res = await fetch(`https://api.tvmaze.com/schedule?country=FR&date=${today}`);
+        
+        if (!res.ok) throw new Error("Erreur réseau");
         const data = await res.json();
 
+        const tvListDiv = document.getElementById('tv-list');
+
         if (!data || data.length === 0) {
-            document.getElementById('tv-list').innerHTML = "<p>Aucun programme trouvé pour aujourd'hui.</p>";
+            tvListDiv.innerHTML = "<p>Aucun programme trouvé pour aujourd'hui.</p>";
             return;
         }
 
-        // On trie par heure de diffusion
+        // 4. On trie les programmes par heure
         data.sort((a, b) => a.airtime.localeCompare(b.airtime));
 
-        let html = '<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">';
+        // 5. On génère le HTML
+        let html = '<div style="display: flex; flex-direction: column; gap: 5px; margin-top: 15px;">';
         
-        // On affiche les 20 premiers programmes pour ne pas surcharger
-        data.slice(0, 20).forEach(prog => {
+        // On limite aux 25 premiers résultats pour la clarté
+        data.slice(0, 25).forEach(prog => {
             const heure = prog.airtime;
             const chaine = prog.show.network ? prog.show.network.name : "Web";
             const titre = prog.show.name;
-            const episode = prog.name !== titre ? ` - ${prog.name}` : "";
 
             html += `
-                <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
-                    <span style="font-weight: bold; color: var(--primary-color); min-width: 50px;">${heure}</span>
+                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
+                    <span style="font-weight: bold; color: var(--primary-color); min-width: 55px;">${heure}</span>
                     <div style="flex-grow: 1;">
                         <strong style="color: #374151;">${chaine}</strong> : 
-                        <span style="color: #4b5563;">${titre}${episode}</span>
+                        <span style="color: #4b5563;">${titre}</span>
                     </div>
                 </div>`;
         });
         
         html += '</div>';
-        document.getElementById('tv-list').innerHTML = html;
+        tvListDiv.innerHTML = html;
 
     } catch(e) {
         console.error("Erreur TVMaze:", e);
-        document.getElementById('tv-list').innerHTML = "<p>Erreur lors de la récupération du programme TV.</p>";
+        document.getElementById('tv-list').innerHTML = "<p>Service TV temporairement indisponible (Erreur de connexion).</p>";
     }
 }
