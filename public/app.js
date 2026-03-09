@@ -36,7 +36,7 @@ function loadSection(section) {
         case 'meteo': sectionTitle.innerText = "Météo & Climat"; fetchMeteo(); break;
         case 'ephemeride': sectionTitle.innerText = "Éphéméride"; fetchEphemeride(); break;
         case 'tv': sectionTitle.innerText = "Programme TV"; fetchTV(); break;
-        case 'cinema': sectionTitle.innerText = "Cinéma Bastogne"; fetchCinema(); break; // <-- NOUVELLE LIGNE
+        case 'cinema': sectionTitle.innerText = "Cinéma Bastogne"; fetchCinema(); break;
         case 'ia': sectionTitle.innerText = "Assistant Groq"; loadIA(); break;
     }
 }
@@ -46,7 +46,6 @@ function loadSection(section) {
 async function fetchActualites() {
     try {
         let htmlContent = '';
-        // Ajout du paramètre ?t= et cache: 'no-store' pour forcer le rafraîchissement (Cache-busting)
         const persoRes = await fetch('https://raw.githubusercontent.com/lucgus11/api-actu/main/news.json?t=' + new Date().getTime(), { cache: 'no-store' });
         
         if(persoRes.ok) {
@@ -148,7 +147,6 @@ async function fetchMeteo() {
         const uvMax = data.daily.uv_index_max[0];
         let uvColor = uvMax < 3 ? '#10b981' : (uvMax < 6 ? '#f59e0b' : '#ef4444');
 
-        // Récupération des feux via API publique de la NASA (EONET)
         let nasaHtml = '<p>Recherche en cours...</p>';
         try {
             const fireRes = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=3');
@@ -234,10 +232,11 @@ async function fetchTV() {
     } catch(e) {
         document.getElementById('tv-list').innerHTML = "<p>Les données sont indisponibles pour le moment.</p>";
     }
-    // --- SECTION CINÉMA BASTOGNE ---
+}
+
+// --- SECTION CINÉMA BASTOGNE ---
 async function fetchCinema() {
     try {
-        // On utilise ton lien JSON RSS.app
         const res = await fetch('https://rss.app/feeds/v1.1/S3YoZYcSfg6I1jUl.json');
         const data = await res.json();
         
@@ -247,14 +246,15 @@ async function fetchCinema() {
             data.items.forEach(item => {
                 const title = item.title || 'Film sans titre';
                 const url = item.url || '#';
-                // RSS.app met souvent le contenu formaté dans content_html
                 const content = item.content_html || item.summary || 'Aucune description.';
 
                 htmlContent += `
-                    <div class="card" style="border-left: 4px solid #eab308;">
-                        <h3 style="margin-bottom: 10px;">${title}</h3>
-                        <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
-                            ${content}
+                    <div class="card" style="border-left: 4px solid #eab308; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <h3 style="margin-bottom: 10px;">${title}</h3>
+                            <div style="font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;">
+                                ${content}
+                            </div>
                         </div>
                         <a href="${url}" target="_blank" style="color: #eab308; text-decoration: none; margin-top: 15px; display: inline-block; font-weight: bold;">
                             Réserver / Détails <i class="fas fa-ticket-alt"></i>
@@ -270,13 +270,11 @@ async function fetchCinema() {
         contentArea.innerHTML = "<p>Erreur lors du chargement des données du cinéma.</p>";
     }
 }
-}
 
 // --- SYSTÈME DE CHAT (GROQ) ---
-let chatHistory = []; // La mémoire de la conversation
+let chatHistory = []; 
 
 function loadIA() {
-    // Construction des bulles de discussion
     let messagesHtml = chatHistory.length === 0 
         ? "<p style='color: #888; font-style: italic; text-align: center; margin-top: 20px;'>Début de la conversation avec Groq...</p>" 
         : '';
@@ -303,7 +301,6 @@ function loadIA() {
             </div>
         </div>`;
         
-    // Faire défiler la boîte de chat tout en bas automatiquement
     const chatBox = document.getElementById('chat-box');
     if(chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -313,16 +310,10 @@ async function askIA() {
     const userText = promptInput.value.trim();
     if (!userText) return;
 
-    // 1. On ajoute le message de l'utilisateur à l'historique
     chatHistory.push({ role: 'user', content: userText });
-    
-    // On efface le champ texte pour la prochaine question
     promptInput.value = '';
-    
-    // On rafraîchit l'affichage pour montrer la bulle de l'utilisateur
     loadIA();
 
-    // 2. On affiche un message de chargement temporaire
     const chatBox = document.getElementById('chat-box');
     chatBox.innerHTML += `
         <div style="margin-bottom: 15px; text-align: left;">
@@ -330,7 +321,6 @@ async function askIA() {
         </div>`;
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // 3. On envoie TOUT l'historique au serveur
     try {
         const res = await fetch('/api/chat', {
             method: 'POST',
@@ -339,7 +329,6 @@ async function askIA() {
         });
         const data = await res.json();
         
-        // 4. On ajoute la réponse de l'IA à l'historique
         if (data.error) {
             chatHistory.push({ role: 'assistant', content: "❌ Erreur : " + data.error });
         } else {
@@ -349,7 +338,6 @@ async function askIA() {
         chatHistory.push({ role: 'assistant', content: "Erreur de connexion au serveur IA." });
     }
     
-    // 5. On rafraîchit l'affichage final
     loadIA();
 }
 
@@ -396,7 +384,6 @@ function showInstallPopup() {
 window.onload = () => {
     loadSection('actu');
     
-    // Le code vital pour la PWA
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Erreur Service Worker:', err));
     }
