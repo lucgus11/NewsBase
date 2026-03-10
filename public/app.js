@@ -215,41 +215,55 @@ async function fetchEphemeride() {
 async function fetchTV() {
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
-            <h3><i class="fas fa-tv"></i> Programme TV (Ce soir)</h3>
-            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Chargement...</div>
+            <h3><i class="fas fa-tv"></i> Programme TV</h3>
+            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Recherche des programmes en cours...</div>
         </div>`;
         
     try {
-        // Interrogation directe de l'API publique TVMaze (Pays: France pour les chaînes FR)
-        const res = await fetch('https://api.tvmaze.com/schedule?country=FR');
+        // On retire "country=FR" pour avoir tous les programmes disponibles immédiatement
+        // C'est beaucoup plus fiable pour tester si l'API répond
+        const res = await fetch('https://api.tvmaze.com/schedule');
         const data = await res.json();
         
-        // On ne garde que les programmes à partir de 20:00
-        const soiree = data.filter(p => p.airtime >= "20:00");
         let html = '<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">';
         
-        if (soiree.length > 0) {
-            soiree.slice(0, 20).forEach(prog => {
+        if (data && data.length > 0) {
+            // On prend les 25 premiers programmes disponibles maintenant
+            data.slice(0, 25).forEach(prog => {
+                const heure = prog.airtime || "--:--";
+                const chaine = (prog.show && prog.show.network) ? prog.show.network.name : "Streaming";
+                const titre = prog.show ? prog.show.name : "Émission";
+                const pays = (prog.show && prog.show.network && prog.show.network.country) ? `[${prog.show.network.country.code}]` : "";
+
                 html += `
                     <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
-                        <span style="font-weight: bold; color: var(--primary-color); min-width: 55px; background: #eff6ff; padding: 4px 8px; border-radius: 5px; text-align: center;">${prog.airtime}</span>
+                        <span style="font-weight: bold; color: var(--primary-color); min-width: 55px; background: #eff6ff; padding: 4px 8px; border-radius: 5px; text-align: center;">${heure}</span>
                         <div style="flex-grow: 1;">
-                            <strong style="color: #1f2937;">${prog.show.network ? prog.show.network.name : "Web"}</strong><br>
-                            <span style="color: #4b5563;">${prog.show.name}</span>
+                            <strong style="color: #1f2937;">${chaine} ${pays}</strong><br>
+                            <span style="color: #4b5563;">${titre}</span>
                         </div>
                     </div>`;
             });
         } else {
-            html += "<p>Aucun programme trouvé pour ce soir.</p>";
+            html += `
+                <div style="text-align: center; padding: 20px;">
+                    <p>Aucun programme trouvé sur TVMaze pour le moment.</p>
+                    <button onclick="fetchTV()" style="margin-top: 10px; padding: 8px 15px; background: var(--primary-color); color: white; border: none; border-radius: 5px; cursor: pointer;">Réessayer</button>
+                </div>`;
         }
         
         html += '</div>';
         document.getElementById('tv-list').innerHTML = html;
     } catch(e) {
-        document.getElementById('tv-list').innerHTML = "<p>Erreur de connexion à l'API TV.</p>";
+        console.error("Erreur API TVMaze:", e);
+        document.getElementById('tv-list').innerHTML = `
+            <div style="color: #ef4444; padding: 20px; text-align: center;">
+                <i class="fas fa-wifi"></i><br>
+                Impossible de contacter le service TV.<br>
+                <small>Vérifiez votre connexion ou désactivez votre bloqueur de publicités.</small>
+            </div>`;
     }
 }
-
 // --- SYSTÈME DE CHAT (GROQ) ---
 let chatHistory = []; // La mémoire de la conversation
 
