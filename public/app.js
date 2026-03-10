@@ -215,23 +215,38 @@ async function fetchEphemeride() {
 async function fetchTV() {
     contentArea.innerHTML = `
         <div class="card" style="grid-column: 1 / -1;">
-            <h3><i class="fas fa-tv"></i> Programme TV de ce soir</h3>
-            <div id="tv-list">Chargement via Backend...</div>
+            <h3><i class="fas fa-tv"></i> Programme TV (Ce soir)</h3>
+            <div id="tv-list"><i class="fas fa-spinner fa-spin"></i> Chargement...</div>
         </div>`;
         
     try {
-        const res = await fetch('/api/tv');
+        // Interrogation directe de l'API publique TVMaze (Pays: France pour les chaînes FR)
+        const res = await fetch('https://api.tvmaze.com/schedule?country=FR');
         const data = await res.json();
-        let html = '<ul style="list-style: none; padding: 0;">';
-        data.forEach(prog => {
-            html += `<li style="padding: 10px; border-bottom: 1px solid #eee;">
-                        <strong>${prog.chaine}</strong> à 21h10 : ${prog.titre}
-                     </li>`;
-        });
-        html += '</ul>';
+        
+        // On ne garde que les programmes à partir de 20:00
+        const soiree = data.filter(p => p.airtime >= "20:00");
+        let html = '<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">';
+        
+        if (soiree.length > 0) {
+            soiree.slice(0, 20).forEach(prog => {
+                html += `
+                    <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 15px;">
+                        <span style="font-weight: bold; color: var(--primary-color); min-width: 55px; background: #eff6ff; padding: 4px 8px; border-radius: 5px; text-align: center;">${prog.airtime}</span>
+                        <div style="flex-grow: 1;">
+                            <strong style="color: #1f2937;">${prog.show.network ? prog.show.network.name : "Web"}</strong><br>
+                            <span style="color: #4b5563;">${prog.show.name}</span>
+                        </div>
+                    </div>`;
+            });
+        } else {
+            html += "<p>Aucun programme trouvé pour ce soir.</p>";
+        }
+        
+        html += '</div>';
         document.getElementById('tv-list').innerHTML = html;
     } catch(e) {
-        document.getElementById('tv-list').innerHTML = "<p>Les données sont indisponibles pour le moment.</p>";
+        document.getElementById('tv-list').innerHTML = "<p>Erreur de connexion à l'API TV.</p>";
     }
 }
 
