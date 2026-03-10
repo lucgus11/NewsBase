@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewsBase - V2</title>
+    <title>NewsBase - V3</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -22,6 +22,12 @@
                 <li><a href="#" onclick="loadSection('ephemeride')"><i class="fas fa-calendar-day"></i> Éphéméride</a></li>
                 <li><a href="#" onclick="loadSection('tv')"><i class="fas fa-tv"></i> Programme TV</a></li>
                 <li><a href="#" onclick="loadSection('ia')"><i class="fas fa-robot"></i> Assistant IA</a></li>
+                
+                <li style="border-top: 1px solid #374151; margin-top: 10px; padding-top: 10px;">
+                    <a href="#" onclick="requestNotificationPermission()">
+                        <i class="fas fa-bell"></i> Activer Alertes
+                    </a>
+                </li>
             </ul>
         </nav>
 
@@ -32,7 +38,7 @@
             </header>
             
             <div id="content-area" class="content-grid">
-                <div class="welcome-message">Bienvenue sur NewsBase V2. Sélectionnez une catégorie.</div>
+                <div class="welcome-message">Bienvenue sur NewsBase V3. Sélectionnez une catégorie.</div>
             </div>
         </main>
     </div>
