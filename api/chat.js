@@ -19,7 +19,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile', // C'est ici que LLaMA 3.1 est configuré !
+        // 👇 Voici le nouveau modèle LLaMA 3.3 à jour !
+        model: 'llama-3.3-70b-versatile', 
         messages: [
           { role: 'system', content: 'Tu es l\'assistant intelligent de NewsBase. Réponds de manière concise, utile et amicale en français.' },
           ...messages
@@ -30,10 +31,12 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
+    // On gère les erreurs renvoyées par Groq proprement
     if (data.error) {
         return res.status(500).json({ error: data.error.message });
     }
 
+    // On renvoie la réponse
     return res.status(200).json({ reply: data.choices[0].message.content });
 
   } catch (error) {
