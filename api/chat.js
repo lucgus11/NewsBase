@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'Clé API Groq manquante sur Vercel' });
+    return res.status(500).json({ error: 'La clé API Groq est introuvable sur Vercel.' });
   }
 
   try {
@@ -19,9 +19,9 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768', // Modèle rapide et efficace
+        model: 'llama-3.1-70b-versatile', // C'est ici que LLaMA 3.1 est configuré !
         messages: [
-          { role: 'system', content: 'Tu es l assistant intelligent de NewsBase. Réponds de manière concise et amicale en français.' },
+          { role: 'system', content: 'Tu es l\'assistant intelligent de NewsBase. Réponds de manière concise, utile et amicale en français.' },
           ...messages
         ],
         temperature: 0.7
@@ -37,6 +37,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply: data.choices[0].message.content });
 
   } catch (error) {
-    return res.status(500).json({ error: 'Erreur de connexion à Groq' });
+    return res.status(500).json({ error: 'Erreur réseau lors de la communication avec Groq.' });
   }
 }
