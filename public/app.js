@@ -400,3 +400,40 @@ window.onload = () => {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Erreur Service Worker:', err));
     }
 };
+// --- SYSTÈME DE NOTIFICATIONS (V3) ---
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log("Ce navigateur ne supporte pas les notifications.");
+        return;
+    }
+
+    if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            showLocalNotification("Notifications activées !", "Vous recevrez des alertes pour les nouveaux articles.");
+        }
+    }
+}
+
+function showLocalNotification(title, body) {
+    if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, {
+                body: body,
+                icon: '/Gemini_Generated_Image_adxl6eadxl6eadxl (1).png'
+            });
+        });
+    }
+}
+
+// Simulation : Déclencher une notification quand on rafraîchit les actus
+// On modifie légèrement ta fonction fetchActualites pour inclure l'alerte
+const originalFetchActualites = fetchActualites;
+fetchActualites = async function() {
+    await originalFetchActualites();
+    // Simulation : si on trouve des articles, on prévient l'utilisateur
+    if (Notification.permission === 'granted') {
+        showLocalNotification("NewsBase Mis à jour", "Les dernières actualités ont été chargées.");
+    }
+};
